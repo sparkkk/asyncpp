@@ -16,7 +16,7 @@ add_executable(asyncpp-test ${source_files})
 
 target_include_directories(
     asyncpp-test PRIVATE	
-    ${CMAKE_SOURCE_DIR}/asyncpp
+    ${CMAKE_SOURCE_DIR}
 )
 
 target_compile_options(
