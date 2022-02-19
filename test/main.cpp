@@ -30,7 +30,7 @@ void test_basic() {
 void test_fill_and_drain() {
     asyncpp::queue<int> queue;
     queue.enable(20);
-    queue.suspend_pushing();
+    queue.block_pushing();
     auto producer = std::thread([&]() {
         for (int i = 0; i < 100; ++i) {
             queue.push(i);
@@ -45,7 +45,9 @@ void test_fill_and_drain() {
         }
     });
     for (int i = 0; i < 5; ++i) {
+        printf("filling\n");
         queue.fill();
+        printf("draining\n");
         queue.drain();
     }
     queue.continue_pushing();
@@ -55,8 +57,56 @@ void test_fill_and_drain() {
     printf("end\n");
 }
 
+void test_capacity_change() {
+    asyncpp::queue<int> queue;
+    queue.enable(5);
+    auto producer = std::thread([&]() {
+        int value = 0;
+        while (true) {
+            if (queue.push(value) != asyncpp::result_code::SUCCEED) {
+                break;
+            }
+            printf("producer: pushed %d\n", value);
+            ++value;
+        }
+    });
+    auto consumer = std::thread([&]() {
+        int value = 0;
+        while (true) {
+            if (queue.pop(value) != asyncpp::result_code::SUCCEED) {
+                break;
+            }
+            printf("consumer: popped %d\n", value);
+        }
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("enlarge capacity\n");
+    queue.change_capacity(20);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("shrink capacity\n");
+    queue.change_capacity(5);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    printf("quitting\n");
+    queue.disable();
+    producer.join();
+    consumer.join();
+}
+
+void test_instant_and_timeout() {
+    asyncpp::semaphore<> sem;
+    asyncpp::result_code res;
+    sem.enable(1);
+    res = sem.acquire(1);
+    printf("res=%d\n", res);
+    res = sem.instant_acquire(1);
+    printf("res=%d\n", res);
+    res = sem.timeout_acquire(1, std::chrono::seconds(1));
+    printf("res=%d\n", res);
+}
+
 int main(int argc, const char * argv[])
 {
+    //test_instant_and_timeout();
     test_fill_and_drain();
     return 0;
 }

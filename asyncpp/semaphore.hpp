@@ -5,7 +5,7 @@
 #include <chrono>
 #include <functional>
 
-#include "common.hpp"
+#include <asyncpp/common.hpp>
 
 namespace asyncpp
 {
@@ -17,14 +17,17 @@ namespace asyncpp
         semaphore(const semaphore &) = delete;
         semaphore<VT> & operator = (const semaphore<VT> &) = delete;
     public:
-        bool enable(VT initialValue) {
+        result_code enable(VT initialValue) {
+            if (initialValue < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
             if (mEnabled) {
-                return false;
+                return result_code::INCORRECT_STATE;
             }
             mValue = initialValue;
             mEnabled = true;
-            return true;
+            return result_code::SUCCEED;
         }
         void re_enable() {
             std::unique_lock<std::mutex> lock(mMutex);
@@ -40,80 +43,79 @@ namespace asyncpp
             mCond.notify_all();
         }
         result_code acquire(VT count) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
-            do {
-                while (mEnabled && !passExclusiveCheck()) {
-                    mCond.wait(lock);
-                }
-                if (!mEnabled) {
-                    return result_code::INCORRECT_STATE;
-                }
-                while (mEnabled && passExclusiveCheck() && mValue < count) {
-                    mCond.wait(lock);
-                }
-                if (!mEnabled) {
-                    return result_code::INCORRECT_STATE;
-                }
-            } while (!passExclusiveCheck());
-            mValue -= count;
-            return result_code::SUCCEED;
-        }
-        result_code try_acquire(VT count) {
-            std::unique_lock<std::mutex> lock(mMutex);
-            if (!mEnabled) {
-                return result_code::INCORRECT_STATE;
+            result_code res = result_code::SUCCEED;
+            if ((res = _reserve(lock, count)) == result_code::SUCCEED) {
+                mValue -= count;
             }
-            if (!passExclusiveCheck()) {
-                return result_code::INCORRECT_STATE;
-            }
-            if (mValue < count) {
-                return result_code::TRY_FAILED;
-            }
-            mValue -= count;
-            return result_code::SUCCEED;
+            return res;
         }
         result_code reserve(VT count) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
-            do {
-                while (mEnabled && !passExclusiveCheck()) {
-                    mCond.wait(lock);
-                }
-                if (!mEnabled) {
-                    return result_code::INCORRECT_STATE;
-                }
-                while (mEnabled && passExclusiveCheck() && mValue < count) {
-                    mCond.wait(lock);
-                }
-                if (!mEnabled) {
-                    return result_code::INCORRECT_STATE;
-                }
-            } while (!passExclusiveCheck());
-            return result_code::SUCCEED;
+            return _reserve(lock, count);
         }
-        result_code try_reserve(VT count) {
+        result_code instant_acquire(VT count) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
-            if (!mEnabled) {
-                return result_code::INCORRECT_STATE;
+            result_code res = result_code::SUCCEED;
+            if ((res = _instant_reserve(lock, count)) == result_code::SUCCEED) {
+                mValue -= count;
             }
-            if (!passExclusiveCheck()) {
-                return result_code::INCORRECT_STATE;
-            }
-            if (mValue < count) {
-                return result_code::TRY_FAILED;
-            }
-            return result_code::SUCCEED;
+            return res;
         }
-        void release(VT count){
+        result_code instant_reserve(VT count) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
+            std::unique_lock<std::mutex> lock(mMutex);
+            return _instant_reserve(lock, count);
+        }
+        template <typename Rep, typename Period>
+        result_code timeout_acquire(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
+            std::unique_lock<std::mutex> lock(mMutex);
+            auto timeoutTime = std::chrono::steady_clock::now() + timeoutDuration;
+            result_code res = result_code::SUCCEED;
+            if ((res = _timeout_reserve(lock, count, timeoutTime)) == result_code::SUCCEED) {
+                mValue -= count;
+            }
+            return res;
+        }
+        template <typename Rep, typename Period>
+        result_code timeout_reserve(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
+            std::unique_lock<std::mutex> lock(mMutex);
+            auto timeoutTime = std::chrono::steady_clock::now() + timeoutDuration;
+            return _timeout_reserve(lock, count, timeoutTime);
+        }
+        result_code release(VT count){
+            if (count < 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
             mValue += count;
             mCond.notify_all();
+            return result_code::SUCCEED;
         }
         VT get() {
+            std::unique_lock<std::mutex> lock(mMutex);
             return mValue;
         }
         result_code enter_exclusive_scope() {
             std::unique_lock<std::mutex> lock(mMutex);
-            while (mEnabled && !passExclusiveCheck()) {
+            while (mEnabled && !_pass_exclusive_check()) {
                 mCond.wait(lock);
             }
             if (!mEnabled) {
@@ -125,7 +127,7 @@ namespace asyncpp
         }
         result_code exit_exclusive_scope() {
             std::unique_lock<std::mutex> lock(mMutex);
-            if (!mEnabled || !passExclusiveCheck()) {
+            if (!mEnabled || !_pass_exclusive_check()) {
                 return result_code::INCORRECT_STATE;
             }
             mExclusiveAccessingThreadID = std::thread::id();
@@ -134,12 +136,65 @@ namespace asyncpp
         }
         bool exclusive_accessing() {
             std::unique_lock<std::mutex> lock(mMutex);
-            return mExclusiveAccessingThreadID == std::this_thread::get_id();
+            return mEnabled && mExclusiveAccessingThreadID == std::this_thread::get_id();
         }
     private:
-        bool passExclusiveCheck() {
+        bool _pass_exclusive_check() {
             return mExclusiveAccessingThreadID == std::thread::id() ||
                 mExclusiveAccessingThreadID == std::this_thread::get_id();
+        }
+        result_code _reserve(std::unique_lock<std::mutex> & lock, VT count) {
+            do {
+                while (mEnabled && !_pass_exclusive_check()) {
+                    mCond.wait(lock);
+                }
+                if (!mEnabled) {
+                    return result_code::INCORRECT_STATE;
+                }
+                while (mEnabled && _pass_exclusive_check() && mValue < count) {
+                    mCond.wait(lock);
+                }
+                if (!mEnabled) {
+                    return result_code::INCORRECT_STATE;
+                }
+            } while (!_pass_exclusive_check());
+            return result_code::SUCCEED;
+        }
+        result_code _instant_reserve(std::unique_lock<std::mutex> & lock, VT count) {
+            if (!mEnabled) {
+                return result_code::INCORRECT_STATE;
+            }
+            if (!_pass_exclusive_check()) {
+                return result_code::INCORRECT_STATE;
+            }
+            if (mValue < count) {
+                return result_code::TRY_FAILED;
+            }
+            return result_code::SUCCEED;
+        }
+        result_code _timeout_reserve(
+            std::unique_lock<std::mutex> & lock, 
+            VT count, 
+            std::chrono::steady_clock::time_point timeoutTime) {
+            do {
+                while (mEnabled && !_pass_exclusive_check()) {
+                    if (mCond.wait_until(lock, timeoutTime) == std::cv_status::timeout) {
+                        return result_code::TIME_OUT;
+                    }
+                }
+                if (!mEnabled) {
+                    return result_code::INCORRECT_STATE;
+                }
+                while (mEnabled && _pass_exclusive_check() && mValue < count) {
+                    if (mCond.wait_until(lock, timeoutTime) == std::cv_status::timeout) {
+                        return result_code::TIME_OUT;
+                    }
+                }
+                if (!mEnabled) {
+                    return result_code::INCORRECT_STATE;
+                }
+            } while (!_pass_exclusive_check());
+            return result_code::SUCCEED;
         }
     private:
         std::mutex mMutex;

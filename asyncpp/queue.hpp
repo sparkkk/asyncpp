@@ -3,9 +3,9 @@
 #include <list>
 #include <mutex>
 #include <functional>
-#include <asyncpp/semaphore.hpp>
 
-#include "common.hpp"
+#include <asyncpp/common.hpp>
+#include <asyncpp/semaphore.hpp>
 
 namespace asyncpp
 {
@@ -42,20 +42,20 @@ namespace asyncpp
             return mCapacity;
         }
 
-        result_code suspend_pushing() {
+        result_code block_pushing() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if (!_producing_suspended()) {
-                res = _suspend_producing();
+            if (!_producing_blocked()) {
+                res = _block_producing();
             }
             return res;
         }
 
-        result_code suspend_popping() {
+        result_code block_popping() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if (!_consuming_suspended()) {
-                res = _suspend_consuming();
+            if (!_consuming_blocked()) {
+                res = _block_consuming();
             }
             return res;
         }
@@ -63,7 +63,7 @@ namespace asyncpp
         result_code continue_pushing() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if (_producing_suspended()) {
+            if (_producing_blocked()) {
                 res = _continue_producing();
             }
             return res;
@@ -72,7 +72,7 @@ namespace asyncpp
         result_code continue_popping() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if (_consuming_suspended()) {
+            if (_consuming_blocked()) {
                 res = _continue_consuming();
             }
             return res;
@@ -81,12 +81,12 @@ namespace asyncpp
         result_code fill() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if (!_consuming_suspended()) {
-                if ((res = _suspend_consuming()) != result_code::SUCCEED) {
+            if (!_consuming_blocked()) {
+                if ((res = _block_consuming()) != result_code::SUCCEED) {
                     return res;
                 }
             }
-            if (_producing_suspended()) {
+            if (_producing_blocked()) {
                 if ((res = _continue_producing()) != result_code::SUCCEED) {
                     return res;
                 }
@@ -100,10 +100,10 @@ namespace asyncpp
         result_code drain() {
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if ((res = _suspend_producing()) != result_code::SUCCEED) {
+            if ((res = _block_producing()) != result_code::SUCCEED) {
                 return res;
             }
-            if (_consuming_suspended()) {
+            if (_consuming_blocked()) {
                 if ((res = _continue_consuming()) != result_code::SUCCEED) {
                     return res;
                 }
@@ -121,8 +121,8 @@ namespace asyncpp
             }
             result_code res = result_code::SUCCEED;
             if (capacity < mCapacity) {
-                if (!_producing_suspended()) {
-                    if ((res = _suspend_producing()) != result_code::SUCCEED) {
+                if (!_producing_blocked()) {
+                    if ((res = _block_producing()) != result_code::SUCCEED) {
                         return res;
                     }
                 }
@@ -188,11 +188,11 @@ namespace asyncpp
 
     private:
 
-        inline result_code _suspend_producing() {
+        inline result_code _block_producing() {
             return mSemC.enter_exclusive_scope();
         }
 
-        inline result_code _suspend_consuming() {
+        inline result_code _block_consuming() {
             return mSemP.enter_exclusive_scope();
         }
 
@@ -228,11 +228,11 @@ namespace asyncpp
             mSemP.release(count);
         }
 
-        inline bool _producing_suspended() {
+        inline bool _producing_blocked() {
             return mSemC.exclusive_accessing();
         }
 
-        inline bool _consuming_suspended() {
+        inline bool _consuming_blocked() {
             return mSemP.exclusive_accessing();
         }
     private:
