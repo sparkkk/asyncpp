@@ -60,7 +60,7 @@ namespace asyncpp
             std::unique_lock<std::mutex> lock(mMutex);
             return _reserve(lock, count);
         }
-        result_code instant_acquire(VT count) {
+        result_code nonblock_acquire(VT count) {
             if (count < 0) {
                 return result_code::INVALID_ARGUMENTS;
             }
@@ -71,7 +71,7 @@ namespace asyncpp
             }
             return res;
         }
-        result_code instant_reserve(VT count) {
+        result_code nonblock_reserve(VT count) {
             if (count < 0) {
                 return result_code::INVALID_ARGUMENTS;
             }

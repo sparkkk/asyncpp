@@ -156,7 +156,7 @@ namespace asyncpp
 
         result_code instant_push(const IT & item) {
             result_code res = result_code::SUCCEED;
-            if ((res = _instant_acquire_producing(1)) != result_code::SUCCEED) {
+            if ((res = _nonblock_acquire_producing(1)) != result_code::SUCCEED) {
                 return res;
             }
             {
@@ -198,7 +198,7 @@ namespace asyncpp
         }
         result_code instant_pop(IT & item) {
             result_code res = result_code::SUCCEED;
-            if ((res = _instant_acquire_consuming(1)) != result_code::SUCCEED) {
+            if ((res = _nonblock_acquire_consuming(1)) != result_code::SUCCEED) {
                 return res;
             }
             {
@@ -241,7 +241,7 @@ namespace asyncpp
 
         result_code instant_peek(IT & item) {
             result_code res = result_code::SUCCEED;
-            if ((res = _instant_acquire_consuming(1)) != result_code::SUCCEED) {
+            if ((res = _nonblock_acquire_consuming(1)) != result_code::SUCCEED) {
                 return res;
             }
             {
@@ -303,8 +303,8 @@ namespace asyncpp
         inline result_code _acquire_producing(uint32_t count) {
             return mSemC.acquire(count);
         }
-        inline result_code _instant_acquire_producing(uint32_t count) {
-            return mSemC.instant_acquire(count);
+        inline result_code _nonblock_acquire_producing(uint32_t count) {
+            return mSemC.nonblock_acquire(count);
         }
         template<typename Rep, typename Period>
         inline result_code _timeout_acquire_producing(
@@ -316,8 +316,8 @@ namespace asyncpp
         inline result_code _acquire_consuming(uint32_t count) {
             return mSemP.acquire(count);
         }
-        inline result_code _instant_acquire_consuming(uint32_t count) {
-            return mSemP.instant_acquire(count);
+        inline result_code _nonblock_acquire_consuming(uint32_t count) {
+            return mSemP.nonblock_acquire(count);
         }
         template<typename Rep, typename Period>
         inline result_code _timeout_acquire_consuming(

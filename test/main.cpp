@@ -98,7 +98,7 @@ void test_instant_and_timeout() {
     sem.enable(1);
     res = sem.acquire(1);
     printf("res=%d\n", res);
-    res = sem.instant_acquire(1);
+    res = sem.nonblock_acquire(1);
     printf("res=%d\n", res);
     res = sem.timeout_acquire(1, std::chrono::seconds(1));
     printf("res=%d\n", res);
