@@ -154,6 +154,35 @@ namespace asyncpp
             return res;
         }
 
+        result_code instant_push(const IT & item) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _instant_acquire_producing(1)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                mQueue.push_front(item);
+            }
+            _release_consuming(1);
+            return res;
+        }
+
+        template<typename Rep, typename Period>
+        result_code timeout_push(
+            const IT & item, 
+            std::chrono::duration<Rep, Period> timeoutDuration) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _timeout_acquire_producing(1, timeoutDuration)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                mQueue.push_front(item);
+            }
+            _release_consuming(1);
+            return res;
+        }
+
         result_code pop(IT & item) {
             result_code res = result_code::SUCCEED;
             if ((res = _acquire_consuming(1)) != result_code::SUCCEED) {
@@ -167,19 +196,78 @@ namespace asyncpp
             _release_producing(1);
             return res;
         }
+        result_code instant_pop(IT & item) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _instant_acquire_consuming(1)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                item = std::move(mQueue.back());
+                mQueue.pop_back();
+            }
+            _release_producing(1);
+            return res;
+        }
+        template<typename Rep, typename Period>
+        result_code timeout_pop(
+            IT & item, 
+            std::chrono::duration<Rep, Period> timeoutDuration) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _timeout_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                item = std::move(mQueue.back());
+                mQueue.pop_back();
+            }
+            _release_producing(1);
+            return res;
+        }
 
         result_code peek(IT & item) {
             result_code res = result_code::SUCCEED;
-            if ((res = _acquire_producing(1)) != result_code::SUCCEED) {
+            if ((res = _acquire_consuming(1)) != result_code::SUCCEED) {
                 return res;
             }
             {
                 std::unique_lock<std::mutex> lock(mQueueMutex);
                 item = mQueue.back();
             }
-            _release_producing(1);
+            _release_consuming(1);
             return res;
         }
+
+        result_code instant_peek(IT & item) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _instant_acquire_consuming(1)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                item = mQueue.back();
+            }
+            _release_consuming(1);
+            return res;
+        }
+
+        template<typename Rep, typename Period>
+        result_code timeout_peek(
+            IT & item, 
+            std::chrono::duration<Rep, Period> timeoutDuration) {
+            result_code res = result_code::SUCCEED;
+            if ((res = _timeout_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
+                return res;
+            }
+            {
+                std::unique_lock<std::mutex> lock(mQueueMutex);
+                item = mQueue.back();
+            }
+            _release_consuming(1);
+            return res;
+        }
+
 
         uint32_t get_size() {
             std::unique_lock<std::mutex> lock(mQueueMutex);
@@ -215,9 +303,27 @@ namespace asyncpp
         inline result_code _acquire_producing(uint32_t count) {
             return mSemC.acquire(count);
         }
+        inline result_code _instant_acquire_producing(uint32_t count) {
+            return mSemC.instant_acquire(count);
+        }
+        template<typename Rep, typename Period>
+        inline result_code _timeout_acquire_producing(
+            uint32_t count, 
+            std::chrono::duration<Rep, Period> timeoutDuration) {
+            return mSemC.timeout_acquire(count, timeoutDuration);
+        }
 
         inline result_code _acquire_consuming(uint32_t count) {
             return mSemP.acquire(count);
+        }
+        inline result_code _instant_acquire_consuming(uint32_t count) {
+            return mSemP.instant_acquire(count);
+        }
+        template<typename Rep, typename Period>
+        inline result_code _timeout_acquire_consuming(
+            uint32_t count, 
+            std::chrono::duration<Rep, Period> timeoutDuration) {
+            return mSemP.timeout_acquire(count, timeoutDuration);
         }
 
         inline void _release_producing(uint32_t count) {

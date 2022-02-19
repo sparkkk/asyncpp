@@ -102,12 +102,54 @@ void test_instant_and_timeout() {
     printf("res=%d\n", res);
     res = sem.timeout_acquire(1, std::chrono::seconds(1));
     printf("res=%d\n", res);
+    sem.disable();
+
+    
+    asyncpp::queue<int> queue;
+    queue.enable(1);
+    res = queue.push(1);
+    printf("res=%d\n", res);
+    res = queue.instant_push(1);
+    printf("res=%d\n", res);
+    res = queue.timeout_push(1, std::chrono::seconds(1));
+    printf("res=%d\n", res);
+    queue.disable();
+}
+
+void test_peek() {
+    asyncpp::queue<int> queue;
+    queue.enable(20);
+    auto producer = std::thread([&]() {
+        for (int i = 0; i < 100; ++i) {
+            if (queue.push(i) != asyncpp::result_code::SUCCEED) {
+                break;
+            }
+            printf("producer: pushed %d\n", i);
+        }
+    });
+    auto consumer = std::thread([&]() {
+        int value = 0;
+        for (int i = 0; i < 100; ++i) {
+            if (queue.peek(value) != asyncpp::result_code::SUCCEED) {
+                break;
+            }
+            printf("consumer: peeked %d\n", value);
+            if (queue.pop(value) != asyncpp::result_code::SUCCEED) {
+                break;
+            }
+        }
+    });
+    printf("joining\n");
+    producer.join();
+    consumer.join();
+    printf("end\n");
 }
 
 int main(int argc, const char * argv[])
 {
     //test_instant_and_timeout();
-    test_fill_and_drain();
+    //test_peek();
+    test_instant_and_timeout();
     return 0;
 }
 
