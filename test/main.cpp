@@ -5,6 +5,7 @@
 
 #include <asyncpp/semaphore.hpp>
 #include <asyncpp/queue.hpp>
+#include <asyncpp/sync_queue.hpp>
 
 void test_basic() {
     asyncpp::queue<int> queue;
@@ -146,9 +147,30 @@ void test_peek() {
     printf("end\n");
 }
 
+void test_sync_queue() {
+    asyncpp::sync_queue<int> queue;
+    queue.enable();
+    auto producer = std::thread([&]() {
+        for (int i = 0; i < 100; ++i) {
+            queue.push(i);
+            printf("producer: pushed %d\n", i);
+        }
+    });
+    auto consumer = std::thread([&]() {
+        for (int i = 0; i < 100; ++i) {
+            int value;
+            queue.pop(value);
+            printf("consumer: popped %d\n", value);
+        }
+    });
+    producer.join();
+    consumer.join();
+    queue.disable();
+}
+
 int main(int argc, const char * argv[])
 {
-    test_fill_and_drain();
+    test_sync_queue();
     return 0;
 }
 
