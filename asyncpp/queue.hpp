@@ -154,7 +154,7 @@ namespace asyncpp
             return res;
         }
 
-        result_code instant_push(const IT & item) {
+        result_code nonblock_push(const IT & item) {
             result_code res = result_code::SUCCEED;
             if ((res = _nonblock_acquire_producing(1)) != result_code::SUCCEED) {
                 return res;
@@ -168,7 +168,7 @@ namespace asyncpp
         }
 
         template<typename Rep, typename Period>
-        result_code timeout_push(
+        result_code timed_push(
             const IT & item, 
             std::chrono::duration<Rep, Period> timeoutDuration) {
             result_code res = result_code::SUCCEED;
@@ -196,7 +196,7 @@ namespace asyncpp
             _release_producing(1);
             return res;
         }
-        result_code instant_pop(IT & item) {
+        result_code nonblock_pop(IT & item) {
             result_code res = result_code::SUCCEED;
             if ((res = _nonblock_acquire_consuming(1)) != result_code::SUCCEED) {
                 return res;
@@ -210,11 +210,11 @@ namespace asyncpp
             return res;
         }
         template<typename Rep, typename Period>
-        result_code timeout_pop(
+        result_code timed_pop(
             IT & item, 
             std::chrono::duration<Rep, Period> timeoutDuration) {
             result_code res = result_code::SUCCEED;
-            if ((res = _timeout_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
+            if ((res = _timed_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
                 return res;
             }
             {
@@ -239,7 +239,7 @@ namespace asyncpp
             return res;
         }
 
-        result_code instant_peek(IT & item) {
+        result_code nonblock_peek(IT & item) {
             result_code res = result_code::SUCCEED;
             if ((res = _nonblock_acquire_consuming(1)) != result_code::SUCCEED) {
                 return res;
@@ -253,11 +253,11 @@ namespace asyncpp
         }
 
         template<typename Rep, typename Period>
-        result_code timeout_peek(
+        result_code timed_peek(
             IT & item, 
             std::chrono::duration<Rep, Period> timeoutDuration) {
             result_code res = result_code::SUCCEED;
-            if ((res = _timeout_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
+            if ((res = _timed_acquire_consuming(1, timeoutDuration)) != result_code::SUCCEED) {
                 return res;
             }
             {
@@ -310,7 +310,7 @@ namespace asyncpp
         inline result_code _timeout_acquire_producing(
             uint32_t count, 
             std::chrono::duration<Rep, Period> timeoutDuration) {
-            return mSemC.timeout_acquire(count, timeoutDuration);
+            return mSemC.timed_acquire(count, timeoutDuration);
         }
 
         inline result_code _acquire_consuming(uint32_t count) {
@@ -320,10 +320,10 @@ namespace asyncpp
             return mSemP.nonblock_acquire(count);
         }
         template<typename Rep, typename Period>
-        inline result_code _timeout_acquire_consuming(
+        inline result_code _timed_acquire_consuming(
             uint32_t count, 
             std::chrono::duration<Rep, Period> timeoutDuration) {
-            return mSemP.timeout_acquire(count, timeoutDuration);
+            return mSemP.timed_acquire(count, timeoutDuration);
         }
 
         inline void _release_producing(uint32_t count) {

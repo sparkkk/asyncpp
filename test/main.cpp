@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <thread>
 #include <atomic>
+#include <vector>
 
 #include <asyncpp/semaphore.hpp>
 #include <asyncpp/queue.hpp>
@@ -92,7 +93,7 @@ void test_capacity_change() {
     consumer.join();
 }
 
-void test_instant_and_timeout() {
+void test_nonblock_and_timeout() {
     asyncpp::semaphore<> sem;
     asyncpp::result_code res;
     sem.enable(1);
@@ -100,7 +101,7 @@ void test_instant_and_timeout() {
     printf("res=%d\n", res);
     res = sem.nonblock_acquire(1);
     printf("res=%d\n", res);
-    res = sem.timeout_acquire(1, std::chrono::seconds(1));
+    res = sem.timed_acquire(1, std::chrono::seconds(1));
     printf("res=%d\n", res);
     sem.disable();
 
@@ -109,9 +110,9 @@ void test_instant_and_timeout() {
     queue.enable(1);
     res = queue.push(1);
     printf("res=%d\n", res);
-    res = queue.instant_push(1);
+    res = queue.nonblock_push(1);
     printf("res=%d\n", res);
-    res = queue.timeout_push(1, std::chrono::seconds(1));
+    res = queue.timed_push(1, std::chrono::seconds(1));
     printf("res=%d\n", res);
     queue.disable();
 }
@@ -147,9 +148,7 @@ void test_peek() {
 
 int main(int argc, const char * argv[])
 {
-    //test_instant_and_timeout();
-    //test_peek();
-    test_instant_and_timeout();
+    test_fill_and_drain();
     return 0;
 }
 

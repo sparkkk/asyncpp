@@ -66,7 +66,7 @@ namespace asyncpp
             }
             std::unique_lock<std::mutex> lock(mMutex);
             result_code res = result_code::SUCCEED;
-            if ((res = _instant_reserve(lock, count)) == result_code::SUCCEED) {
+            if ((res = _nonblock_reserve(lock, count)) == result_code::SUCCEED) {
                 mValue -= count;
             }
             return res;
@@ -76,29 +76,29 @@ namespace asyncpp
                 return result_code::INVALID_ARGUMENTS;
             }
             std::unique_lock<std::mutex> lock(mMutex);
-            return _instant_reserve(lock, count);
+            return _nonblock_reserve(lock, count);
         }
         template <typename Rep, typename Period>
-        result_code timeout_acquire(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
+        result_code timed_acquire(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
             if (count < 0) {
                 return result_code::INVALID_ARGUMENTS;
             }
             std::unique_lock<std::mutex> lock(mMutex);
             auto timeoutTime = std::chrono::steady_clock::now() + timeoutDuration;
             result_code res = result_code::SUCCEED;
-            if ((res = _timeout_reserve(lock, count, timeoutTime)) == result_code::SUCCEED) {
+            if ((res = _timed_reserve(lock, count, timeoutTime)) == result_code::SUCCEED) {
                 mValue -= count;
             }
             return res;
         }
         template <typename Rep, typename Period>
-        result_code timeout_reserve(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
+        result_code timed_reserve(VT count, std::chrono::duration<Rep, Period> timeoutDuration) {
             if (count < 0) {
                 return result_code::INVALID_ARGUMENTS;
             }
             std::unique_lock<std::mutex> lock(mMutex);
             auto timeoutTime = std::chrono::steady_clock::now() + timeoutDuration;
-            return _timeout_reserve(lock, count, timeoutTime);
+            return _timed_reserve(lock, count, timeoutTime);
         }
         result_code release(VT count){
             if (count < 0) {
@@ -160,7 +160,7 @@ namespace asyncpp
             } while (!_pass_exclusive_check());
             return result_code::SUCCEED;
         }
-        result_code _instant_reserve(std::unique_lock<std::mutex> & lock, VT count) {
+        result_code _nonblock_reserve(std::unique_lock<std::mutex> & lock, VT count) {
             if (!mEnabled) {
                 return result_code::INCORRECT_STATE;
             }
@@ -172,7 +172,7 @@ namespace asyncpp
             }
             return result_code::SUCCEED;
         }
-        result_code _timeout_reserve(
+        result_code _timed_reserve(
             std::unique_lock<std::mutex> & lock, 
             VT count, 
             std::chrono::steady_clock::time_point timeoutTime) {
