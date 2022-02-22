@@ -19,6 +19,9 @@ namespace asyncpp
     public:
         //manipulating functions:
         result_code enable(uint32_t capacity) {
+            if (capacity == 0) {
+                return result_code::INVALID_ARGUMENTS;
+            }
             std::unique_lock<std::mutex> lock(mMutex);
             {
                 std::unique_lock<std::mutex> lock(mQueueMutex);
