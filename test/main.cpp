@@ -6,6 +6,7 @@
 #include <asyncpp/semaphore.hpp>
 #include <asyncpp/queue.hpp>
 #include <asyncpp/sync_queue.hpp>
+#include <asyncpp/barrier.hpp>
 
 void test_basic() {
     asyncpp::queue<int> queue;
@@ -168,9 +169,41 @@ void test_sync_queue() {
     queue.disable();
 }
 
+void test_barrier() {
+    int count = 5;
+    std::vector<std::thread> threads;
+    asyncpp::barrier<> barrier;
+    int t = 0;
+    barrier.enable(
+        count, 
+        [&t]() -> bool {
+            printf("passed time %d\n", t);
+            return ++t < 10;
+        }
+    );
+    for (int i = 0; i < count; ++i) {
+        threads.emplace_back([&barrier, i]() {
+            asyncpp::result_code res = asyncpp::SUCCEED;
+            while (true) {
+                if ((res = barrier.await()) != asyncpp::SUCCEED) {
+                    break;
+                }
+                printf("%d passed\n", i);
+            }
+        });
+    }
+
+    printf("joining\n");
+    for (auto & thread : threads) {
+        thread.join();
+    }
+    barrier.disable();
+    printf("end\n");
+}
+
 int main(int argc, const char * argv[])
 {
-    test_sync_queue();
+    test_barrier();
     return 0;
 }
 
