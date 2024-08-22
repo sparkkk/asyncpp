@@ -21,12 +21,14 @@ target_include_directories(
 
 target_compile_options(
     asyncpp-test PRIVATE 
-    -std=c++11
+    -std=c++17
+    -O3
 )
 
 target_link_libraries(
     asyncpp-test
     stdc++
+    pthread
 )
 
 #########################################

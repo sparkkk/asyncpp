@@ -9,58 +9,62 @@
 
 namespace asyncpp
 {
-    template<typename T=int>
+    template<typename _Counter = uint32_t, bool _InterProcess = false>
     class barrier
     {
     public:
         barrier() = default;
         barrier(const barrier &) = delete;
         barrier & operator = (const barrier &) = delete;
+    private:
+        using mutex_t = asyncpp::mutex<_InterProcess>;
+        using cond_t = asyncpp::condition_variable<_InterProcess>;
+        using lock_t = std::unique_lock<std::mutex>;
     public:
-        result_code enable(uint32_t parties, std::function<bool(void)> callback = nullptr) {
-            if (parties == 0) {
+        result_code enable(_Counter total) {
+            if (total == 0) {
                 return result_code::INVALID_ARGUMENTS;
             }
-            std::unique_lock<std::mutex> lock(mMutex);
+            lock_t lock(mMutex);
+            mTotal = total;
+            mValue = 0;
             mEnabled = true;
-            mTotalParties = parties;
-            mAwaitingParties = 0;
-            mCallback = callback;
             return result_code::SUCCEED;
         }
         void disable() {
-            std::unique_lock<std::mutex> lock(mMutex);
+            lock_t lock(mMutex);
             mEnabled = false;
             mCond.notify_all();
         }
-        result_code await() {
-            std::unique_lock<std::mutex> lock(mMutex);
-            if (mAwaitingParties >= mTotalParties) {
-                return result_code::INCORRECT_STATE;
-            }
+        result_code await(const timeout & to = timeout()) {
+            lock_t lock(mMutex);
             if (!mEnabled) {
-                return result_code::INCORRECT_STATE;
+                return result_code::DISABLED;
             }
-            ++mAwaitingParties;
-            if (mAwaitingParties == mTotalParties) {
+            result_code res = result_code::SUCCEED;
+            ++mValue;
+            if (mValue == mTotal) {
                 mCond.notify_all();
-                if (mCallback != nullptr && mCallback()) {
-                    mAwaitingParties = 0;
-                }
+                mValue = 0;
             } else {
-                mCond.wait(lock);
+                if (to.has_value()) {
+                    if (mCond.wait_until(lock, to.value()) == std::cv_status::timeout) {
+                        res = result_code::UNAVAILABLE_OR_TIMEOUT;
+                    }
+                } else {
+                    mCond.wait(lock);
+                }
                 if (!mEnabled) {
-                    return result_code::INCORRECT_STATE;
+                    res = result_code::DISABLED;
                 }
             }
-            return result_code::SUCCEED;
+            return res;
         }
     private:
-        std::mutex mMutex;
+        mutex_t mMutex;
+        cond_t mCond;
         bool mEnabled = false;
-        uint32_t mTotalParties = 0;
-        uint32_t mAwaitingParties = 0;
-        std::condition_variable mCond;
-        std::function<bool(void)> mCallback;
+        _Counter mTotal = 0;
+        _Counter mValue = 0;
     };
 }
